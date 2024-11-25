@@ -7,6 +7,7 @@ use std::{
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
+use clap::ValueEnum;
 
 use crate::{
     api::TorrentIdOrHash,
@@ -423,6 +424,16 @@ pub struct SessionOptions {
 
     #[cfg(feature = "disable-upload")]
     pub disable_upload: bool,
+
+    pub protocol: Protocol,
+}
+
+#[derive(Default, Debug, ValueEnum, Copy, Clone)]
+pub enum Protocol {
+    #[default]
+    Tcp,
+    Udp,
+    Utp
 }
 
 async fn create_tcp_listener(
@@ -612,7 +623,7 @@ impl Session {
                 builder.build().context("error building HTTP(S) client")?
             };
 
-            let stream_connector = Arc::new(StreamConnector::from(proxy_config));
+            let stream_connector = Arc::new(StreamConnector::new(proxy_config, opts.protocol));
 
             let session = Arc::new(Self {
                 persistence,

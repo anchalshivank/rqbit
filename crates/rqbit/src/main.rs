@@ -10,6 +10,7 @@ use std::{
 use anyhow::{bail, Context};
 use clap::{CommandFactory, Parser, ValueEnum};
 use clap_complete::Shell;
+use librqbit::session::Protocol;
 use librqbit::{
     api::ApiAddTorrentResponse,
     http_api::{HttpApi, HttpApiOptions},
@@ -218,8 +219,10 @@ struct Opts {
     #[cfg(feature = "disable-upload")]
     #[arg(long, env = "RQBIT_DISABLE_UPLOAD")]
     disable_upload: bool,
-}
 
+    #[arg(value_enum , default_value_t= Protocol::Tcp)]
+    protocol_type: Protocol
+}
 #[derive(Parser)]
 struct ServerStartOptions {
     /// The output folder to write to. If not exists, it will be created.
@@ -480,6 +483,7 @@ async fn async_main(opts: Opts, cancel: CancellationToken) -> anyhow::Result<()>
         cancellation_token: Some(cancel.clone()),
         #[cfg(feature = "disable-upload")]
         disable_upload: opts.disable_upload,
+        protocol: opts.protocol_type
     };
 
     let stats_printer = |session: Arc<Session>| async move {

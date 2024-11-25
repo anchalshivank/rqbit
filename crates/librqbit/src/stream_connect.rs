@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use anyhow::Context;
+use crate::session::Protocol;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SocksProxyConfig {
@@ -27,7 +28,7 @@ impl SocksProxyConfig {
         })
     }
 
-    async fn connect(
+    async fn connect_tcp(
         &self,
         addr: SocketAddr,
     ) -> anyhow::Result<impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin> {
@@ -40,8 +41,8 @@ impl SocksProxyConfig {
                 username.as_str(),
                 password.as_str(),
             )
-            .await
-            .context("error connecting to proxy")
+                .await
+                .context("error connecting to proxy")
         } else {
             tokio_socks::tcp::Socks5Stream::connect(proxy_addr, addr)
                 .await
@@ -53,11 +54,15 @@ impl SocksProxyConfig {
 #[derive(Debug, Default)]
 pub(crate) struct StreamConnector {
     proxy_config: Option<SocksProxyConfig>,
+    protocol: Protocol,
 }
 
-impl From<Option<SocksProxyConfig>> for StreamConnector {
-    fn from(proxy_config: Option<SocksProxyConfig>) -> Self {
-        Self { proxy_config }
+impl StreamConnector {
+    pub fn new(proxy_config: Option<SocksProxyConfig>, protocol: Protocol) -> Self {
+        Self {
+            proxy_config,
+            protocol
+        }
     }
 }
 
@@ -70,13 +75,28 @@ impl<T> AsyncReadWrite for T where T: tokio::io::AsyncRead + tokio::io::AsyncWri
 
 impl StreamConnector {
     pub async fn connect(&self, addr: SocketAddr) -> anyhow::Result<Box<dyn AsyncReadWrite>> {
-        if let Some(proxy) = self.proxy_config.as_ref() {
-            return Ok(Box::new(proxy.connect(addr).await?));
+
+        match self.protocol {
+            Protocol::Tcp => {
+
+                if let Some(proxy) = self.proxy_config.as_ref() {
+                    return Ok(Box::new(proxy.connect_tcp(addr).await?));
+                }
+                Ok(Box::new(
+                    tokio::net::TcpStream::connect(addr)
+                        .await
+                        .context("error connecting")?,
+                ))
+
+            }
+            Protocol::Udp => {
+                //Todo: Implement Udp protocol
+                panic!("Udp protocol is not implemented");
+            }
+            Protocol::Utp => {
+                // Todo: Implement Utp protocol
+                panic!("UTP protocol is not implemented");
+            }
         }
-        Ok(Box::new(
-            tokio::net::TcpStream::connect(addr)
-                .await
-                .context("error connecting")?,
-        ))
     }
 }
